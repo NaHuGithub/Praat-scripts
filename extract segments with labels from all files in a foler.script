@@ -1,0 +1,75 @@
+# This script extracts and saves segments containing labels from all sound files in a folder.
+
+
+# Na HU, 20180813
+
+# ask the user for the tier number
+form Paths
+	sentence openwavepath 
+	sentence opentextgridpath 
+	comment Which tier of the TextGrid object would you like to analyse?
+	integer Tier 2
+	comment Where do you want to save the results?
+	sentence savepath 
+endform
+
+if right$(opentextgridpath$,1)<>"\"
+	opentextgridpath$=opentextgridpath$+"\"
+endif
+
+
+if right$(savepath$,1)<>"\"
+	savepath$=savepath$+"\"
+endif
+
+
+Create Strings as file list... fileList 'opentextgridpath$'*.TextGrid
+select Strings fileList
+numberOfFiles=Get number of strings
+
+
+
+
+
+for ifile from 1 to numberOfFiles
+
+	select Strings fileList
+	fileName$=Get string... 'ifile'
+	simpleName$=fileName$-".TextGrid"
+	waveName$=simpleName$+".wav"
+	
+	
+	Read from file... 'opentextgridpath$''fileName$'
+	
+
+	Open long sound file... 'openwavepath$''waveName$'
+
+# check how many intervals there are in the selected tier:
+	select TextGrid 'simpleName$'
+	numberOfIntervals = Get number of intervals... tier
+
+# loop through all intervals
+for interval from 1 to numberOfIntervals
+	select TextGrid 'simpleName$'
+	label$ = Get label of interval... tier interval
+	# if an interval contains a label, then calculate the duration.
+	if label$ <> ""
+		start = Get starting point... tier interval
+		end = Get end point... tier interval
+		select LongSound 'simpleName$'
+		Extract part: start, end, "no"
+		newwaveName$=label$+".wav"
+		select Sound 'simpleName$'
+		Save as WAV file... 'savepath$''newwaveName$'
+		#Write to text file... 'savepath$''newwaveName$'
+		select Sound 'simpleName$'
+		Remove
+		
+		
+		
+	endif
+endfor
+
+	select TextGrid 'simpleName$'
+	Remove
+endfor

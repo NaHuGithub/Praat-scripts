@@ -1,0 +1,144 @@
+# This script manipulates the duration of given sound files and resynthesize them
+# Na Hu 202103
+
+form Modify duration
+	sentence wavopenpath 
+	sentence tgopenpath 
+	comment Which tier of the TextGrid object would you like to analyse?
+	integer Tier 3
+	comment Where do you want to save the results?
+	sentence savepath 
+endform
+
+Create Strings as file list... wavList 'wavopenpath$'*.wav
+Create Strings as file list... tgList 'tgopenpath$'*.TextGrid
+
+select Strings wavList
+numberOfwavFiles = Get number of strings
+
+
+
+select Strings tgList
+numberOftgFiles = Get number of strings
+
+for tgfile from 1 to numberOftgFiles
+	select Strings tgList
+	tgfileName$ = Get string... 'tgfile'
+	tgsimpleName$ = tgfileName$ - ".TextGrid"
+	itemNo$ = tgfileName$ - "_S1+So"
+	itemNo = number(itemNo$)
+	Read from file... 'tgopenpath$''tgfileName$'
+	select TextGrid 'tgsimpleName$'
+	s_start = Get start time of interval... tier 2
+	s_end = Get end time of interval... tier 2
+	o_end = Get end time of interval... tier 3
+	s_dur = s_end - s_start
+	o_dur = o_end - s_end
+	so_dur = o_end - s_start
+	s_end_new_o = s_start + 0.11
+	o_end_new_o = s_start + 0.235
+	s_end_new_s = s_start + 0.14
+	o_end_new_s = s_start + 0.285
+	Insert interval tier: 4, "soModifiedDur"  
+
+
+	
+# create a new boundary on the connective tier
+	if itemNo mod 2 <> 0 
+		if o_end_new_o > o_end
+			select TextGrid 'tgsimpleName$'
+			# to make the textgrid a bit longer than 0.235 so that a boundary can be inserted
+			Extend time: 0.24-so_dur, "End" 
+			select TextGrid 'tgsimpleName$'
+			Insert boundary: 4, s_start
+			Insert boundary: 4, s_end_new_o
+			Insert boundary: 4, o_end_new_o
+		else
+			select TextGrid 'tgsimpleName$'
+			Insert boundary: 4, s_start
+			Insert boundary: 4, s_end_new_o
+			Insert boundary: 4, o_end_new_o
+		endif
+			select TextGrid 'tgsimpleName$'
+			newtgName$ = tgsimpleName$ + "_SoODur" + ".TextGrid"
+			Save as text file... 'savepath$''newtgName$'
+	else
+		if o_end_new_s > o_end
+			select TextGrid 'tgsimpleName$'
+			Extend time: 0.29-so_dur, "End"
+			Insert boundary: 4, s_start
+			Insert boundary: 4, s_end_new_s
+			Insert boundary: 4, o_end_new_s
+		else
+			select TextGrid 'tgsimpleName$'
+			Insert boundary: 4, s_start
+			Insert boundary: 4, s_end_new_s
+			Insert boundary: 4, o_end_new_s
+		endif
+		select TextGrid 'tgsimpleName$'
+		newtgName$ = tgsimpleName$ + "_SoSDur" + ".TextGrid"
+		Save as text file... 'savepath$''newtgName$'
+	endif
+
+
+
+
+	for wavfile from 1 to numberOfwavFiles
+		select Strings wavList
+		waveName$ = Get string... 'wavfile'
+		wavesimpleName$ = waveName$ - ".wav"
+		if tgsimpleName$ = wavesimpleName$-"_SoReformed"
+			Read from file... 'wavopenpath$''waveName$'
+			select Sound 'wavesimpleName$'
+			To Manipulation: 0.01, 75, 300
+			select Manipulation 'wavesimpleName$'
+			Extract duration tier
+			Add point: s_start, 1
+
+			if itemNo mod 2 <> 0 
+				# s part
+				relativeS_ODur = 0.11/s_dur
+				relativeO_ODur = 0.125/o_dur
+				select DurationTier 'wavesimpleName$'
+				Add point: s_start+0.001, relativeS_ODur
+				Add point: s_end, relativeS_ODur
+				Add point: s_end+0.001, relativeO_ODur
+				Add point: o_end, relativeO_ODur
+				select Manipulation 'wavesimpleName$'
+				plus DurationTier 'wavesimpleName$'
+				Replace duration tier
+				select Manipulation 'wavesimpleName$'
+				Get resynthesis (overlap-add)
+				newwavName$ = wavesimpleName$ + "_SoODur" + ".wav"
+				select Sound 'wavesimpleName$'
+				Save as WAV file... 'savepath$''newwavName$'
+			else
+				relativeS_SDur = 0.14/s_dur
+				relativeO_SDur = 0.145/o_dur
+				select DurationTier 'wavesimpleName$'
+				Add point: s_start+0.001, relativeS_SDur
+				Add point: s_end, relativeS_SDur
+				Add point: s_end+0.001, relativeO_SDur
+				Add point: o_end, relativeO_SDur
+				select Manipulation 'wavesimpleName$'
+				plus DurationTier 'wavesimpleName$'
+				Replace duration tier
+				select Manipulation 'wavesimpleName$'
+				Get resynthesis (overlap-add)
+				newwavName$ = wavesimpleName$ + "_SoSDur" + ".wav"
+				select Sound 'wavesimpleName$'
+				Save as WAV file... 'savepath$''newwavName$'
+				select Sound 'wavesimpleName$'
+				Remove
+				
+			endif
+				
+		endif
+	endfor
+
+	
+	
+	
+endfor
+
+

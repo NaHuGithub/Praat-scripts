@@ -1,0 +1,230 @@
+# This script gets the f0 max and min values (in st) and duration of all intervals containing labels from all TextGrid objects in a folder.
+# The results will be saved as a .txt file, with each row corresponding to a TextGrid.
+# 
+#
+# 
+# Na HU, 20181022
+
+
+form Calculate durations of labeled segments
+	sentence openpathTextGrid 
+	sentence openpathPitchTier 
+	comment Which tier of the TextGrid object do you want to analyze?
+	integer textTier 1
+	integer segTier 2
+	integer pauseTier 4
+	integer connectiveTier 3
+	integer finalWordTier 5
+	integer pointTier 6
+	comment Where do you want to save the results?
+	text textfile 
+endform
+
+if right$(openpathTextGrid$,1)<>"\"
+	openpathTextGrid$=openpathTextGrid$+"\"
+endif
+
+if right$(openpathPitchTier$,1)<>"\"
+	openpathPitchTier$=openpathPitchTier$+"\"
+endif
+
+
+Create Strings as file list... tg_list 'openpathTextGrid$'*.TextGrid
+Create Strings as file list... pt_list 'openpathPitchTier$'*.PitchTier
+
+select Strings tg_list
+numberOftgFiles = Get number of strings
+
+select Strings pt_list
+numberOfptFiles = Get number of strings
+
+titleline$="tgsimpleName tglabel pointInfo finalWordDuration pauseDuration connectiveDuration seg1duration seg2duration seg1pitchMax seg1pitchMaxst seg1pitchMin seg1pitchMinst seg1pitchMean seg1pitchRange seg1pitchRangest seg2pitchMax seg2pitchMaxst seg2pitchMin seg2pitchMinst seg2pitchMean seg2pitchRange seg2pitchRangest seg1finalpitchMin seg1finalpitchMinst seg2initialpitchMax seg2initialpitchMaxst pitchResetst overallpitchMax overallpitchMin overallpitchMean overallpitchRange overallpitchRangest overallpitchMaxst overallpitchMinst overallpitchMeanst connectivePitchMaxst connectivePitchMinst connectivePitchRangest finalWordPitchMaxst finalWordPitchMinst finalWordPitchRangest 'newline$'"
+fileappend "'textfile$'" 'titleline$'
+
+
+
+for tgfile from 1 to numberOftgFiles
+	select Strings tg_list
+	tgfileName$ = Get string... 'tgfile'
+	tgsimpleName$ = tgfileName$-".TextGrid"
+	tgtextGridName$ = tgsimpleName$+".TextGrid"
+	
+	Read from file... 'openpathTextGrid$''tgfileName$'
+	select TextGrid 'tgsimpleName$'
+	tglabel$ = Get label of interval... textTier 2
+
+	
+	numberOfPoints = Get number of points... pointTier
+		if numberOfPoints > 0
+			for points from 1 to numberOfPoints
+			select TextGrid 'tgsimpleName$'
+			pointInfo$ = Get label of point... pointTier points	
+			endfor
+		endif
+	
+
+	
+	#get pause duration from the pause tier
+	numberOfPauseIntervals = Get number of intervals... pauseTier
+	for pauseinterval from 1 to numberOfPauseIntervals
+		select TextGrid 'tgsimpleName$'
+		pauseLabel$ = Get label of interval... pauseTier pauseinterval
+			if pauseLabel$ <> ""
+				pauseStart = Get starting point... pauseTier pauseinterval
+				pauseEnd = Get end point... pauseTier pauseinterval
+				pauseDuration = pauseEnd - pauseStart
+			endif
+	endfor
+	
+	#get the duration of the connective from the connective tier
+	numberOfconnectiveIntervals = Get number of intervals... connectiveTier
+	for connectiveinterval from 1 to numberOfconnectiveIntervals
+		select TextGrid 'tgsimpleName$'
+		connectiveLabel$ = Get label of interval... connectiveTier connectiveinterval
+			if connectiveLabel$ <> ""
+				connectiveStart = Get starting point... connectiveTier connectiveinterval
+				connectiveEnd = Get end point... connectiveTier connectiveinterval
+				connectiveDuration = connectiveEnd - connectiveStart
+			endif
+	endfor
+
+	numberOfFinalWordIntervals = Get number of intervals... finalWordTier
+	for finalWordinterval from 1 to numberOfFinalWordIntervals
+		select TextGrid 'tgsimpleName$'
+		finalWordLabel$ = Get label of interval... finalWordTier finalWordinterval
+			if finalWordLabel$ <> ""
+				finalWordStart = Get starting point... finalWordTier finalWordinterval
+				finalWordEnd = Get end point... finalWordTier finalWordinterval
+				finalWordDuration = finalWordEnd - finalWordStart
+			endif
+	endfor
+
+	# Get the number of intervals on the selected tier
+	numberOfSegIntervals = Get number of intervals... segTier
+	if numberOfSegIntervals > 2
+			select TextGrid 'tgsimpleName$'
+			seg1label$ = Get label of interval... segTier 2
+				# if the interval has some text as a label, then calculate the duration.
+				if seg1label$ <> ""
+					seg1start = Get starting point... segTier 2
+					seg1end = Get end point... segTier 2
+					seg1duration = seg1end - seg1start
+
+
+						# Get f0 max and min
+						for ptfile from 1 to numberOfptFiles
+							select Strings pt_list
+							ptfileName$ = Get string... 'ptfile'
+							ptsimpleName$ = ptfileName$-".PitchTier"
+							ptsaveName$ = ptsimpleName$+".PitchTier"
+								if ptsimpleName$ = tgsimpleName$
+									Read from file... 'openpathPitchTier$''ptfileName$'
+									select PitchTier 'ptsimpleName$'
+									numberofpitchpoints = Get number of points
+									if numberofpitchpoints > 0
+									To Pitch: 0.02, 60, 500
+									select Pitch 'ptsimpleName$'
+									seg1pitchMax = Get maximum: seg1start, seg1end, "Hertz", "Parabolic"
+									seg1pitchMaxst = Get maximum: seg1start, seg1end, "semitones re 1 Hz", "Parabolic"
+									seg1pitchMin = Get minimum: seg1start, seg1end, "Hertz", "Parabolic"
+									seg1pitchMinst= Get minimum: seg1start, seg1end, "semitones re 1 Hz", "Parabolic"
+									seg1pitchMean = Get mean: seg1start, seg1end, "Hertz"
+									seg1finalpitchMin = Get minimum: 0.9*seg1duration + seg1start, seg1end, "Hertz", "Parabolic"
+									seg1finalpitchMinst = Get minimum: 0.9*seg1duration + seg1start, seg1end, "semitones re 1 Hz", "Parabolic"
+									seg1pitchRange = seg1pitchMax - seg1pitchMin
+									seg1pitchRangest = seg1pitchMaxst - seg1pitchMinst
+									
+									select PitchTier 'ptsimpleName$'
+									Remove
+									select Pitch 'ptsimpleName$'
+									Remove
+									endif
+
+								endif
+						endfor
+				endif
+	endif
+
+	# work on Segment2
+	if numberOfSegIntervals > 2
+			select TextGrid 'tgsimpleName$'
+			seg2label$ = Get label of interval... segTier 4
+				# if the interval has some text as a label, then calculate the duration.
+				if seg2label$ <> ""
+					seg2start = Get starting point... segTier 4
+					seg2end = Get end point... segTier 4
+					seg2duration = seg2end - seg2start
+					
+						for ptfile from 1 to numberOfptFiles
+							select Strings pt_list
+							ptfileName$ = Get string... 'ptfile'
+							ptsimpleName$ = ptfileName$-".PitchTier"
+							
+								if ptsimpleName$ = tgsimpleName$
+									Read from file... 'openpathPitchTier$''ptfileName$'
+									select PitchTier 'ptsimpleName$'
+									if numberofpitchpoints > 0
+									To Pitch: 0.02, 60, 400
+									select Pitch 'ptsimpleName$'
+									seg2pitchMax = Get maximum: seg2start, seg2end, "Hertz", "Parabolic"
+									seg2pitchMaxst =Get maximum: seg2start, seg2end, "semitones re 1 Hz", "Parabolic"
+									seg2pitchMin = Get minimum: seg2start, seg2end, "Hertz", "Parabolic"
+									seg2pitchMinst = Get minimum: seg2start, seg2end, "semitones re 1 Hz", "Parabolic"
+									seg2pitchMean=Get mean: seg2start, seg2end, "Hertz"
+									seg2initialpitchMax = Get maximum: seg2start, seg2start + 0.1*seg2duration, "Hertz", "Parabolic"
+									seg2initialpitchMaxst = Get maximum: seg2start, seg2start + 0.1*seg2duration, "semitones re 1 Hz", "Parabolic"
+									seg2pitchRange = seg2pitchMax - seg2pitchMin
+									seg2pitchRangest = seg2pitchMaxst - seg2pitchMinst
+									pitchResetst = seg2initialpitchMaxst - seg1finalpitchMinst
+									
+									overallpitchMax = Get maximum: seg1start, seg2end, "Hertz", "Parabolic"
+									overallpitchMin = Get minimum: seg1start, seg2end, "Hertz", "Parabolic"
+									overallpitchMean = Get mean: seg1start, seg2end, "Hertz"
+									overallpitchRange = overallpitchMax - overallpitchMin
+									overallpitchMaxst = Get maximum: seg1start, seg2end, "semitones re 1 Hz", "Parabolic"
+									overallpitchMinst = Get minimum: seg1start, seg2end, "semitones re 1 Hz", "Parabolic"
+									overallpitchRangest = overallpitchMaxst - overallpitchMinst
+									overallpitchMeanst = Get mean: seg1start, seg2end, "semitones re 1 Hz"
+
+									connectivePitchMaxst = Get maximum: connectiveStart, connectiveEnd, "semitones re 1 Hz", "Parabolic"
+									connectivePitchMinst = Get minimum: connectiveStart, connectiveEnd, "semitones re 1 Hz", "Parabolic"
+									connectivePitchRangest = connectivePitchMaxst - connectivePitchMinst
+
+									finalWordPitchMaxst = Get maximum: finalWordStart, finalWordEnd, "semitones re 1 Hz", "Parabolic"
+									finalWordPitchMinst = Get minimum: finalWordStart, finalWordEnd, "semitones re 1 Hz", "Parabolic"
+									finalWordPitchRangest = finalWordPitchMaxst - finalWordPitchMinst
+									
+
+									# append the label and the duration to the end of the text file, separated with a tab:	
+									select PitchTier 'ptsimpleName$'
+									Remove
+									select Pitch 'ptsimpleName$'
+									Remove
+
+									endif
+									# if pointInfo$ <> "" and numberofpitchpoints > 0
+									if numberofpitchpoints > 0
+									resultline$ = "'tgsimpleName$' 'tglabel$' 'NA' 'finalWordDuration' 'pauseDuration' 'connectiveDuration' 'seg1duration' 'seg2duration' 'seg1pitchMax' 'seg1pitchMaxst' 'seg1pitchMin' 'seg1pitchMinst' 'seg1pitchMean' 'seg1pitchRange' 'seg1pitchRangest' 'seg2pitchMax' 'seg2pitchMaxst' 'seg2pitchMin' 'seg2pitchMinst' 'seg2pitchMean' 'seg2pitchRange' 'seg2pitchRangest' 'seg1finalpitchMin' 'seg1finalpitchMinst' 'seg2initialpitchMax' 'seg2initialpitchMaxst' 'pitchResetst' 'overallpitchMax' 'overallpitchMin' 'overallpitchMean' 'overallpitchRange' 'overallpitchRangest' 'overallpitchMaxst' 'overallpitchMinst' 'overallpitchMeanst' 'connectivePitchMaxst' 'connectivePitchMinst' 'connectivePitchRangest' 'finalWordPitchMaxst' 'finalWordPitchMinst' 'finalWordPitchRangest' 'newline$'"
+									# elsif pointInfo$ = ""
+									else
+									resultline$ = "'tgsimpleName$' 'tglabel$' 'NA' 'finalWordDuration' 'pauseDuration' 'connectiveDuration' 'seg1duration' 'seg2duration' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'NA' 'newline$'"
+									endif
+									fileappend "'textfile$'" 'resultline$'
+
+									
+								endif
+						endfor
+				endif
+	endif
+
+	
+select TextGrid 'tgsimpleName$'
+Remove
+
+endfor
+
+select Strings tg_list
+Remove
+
+select Strings pt_list
+Remove
